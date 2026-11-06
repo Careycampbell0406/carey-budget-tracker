@@ -113,6 +113,13 @@ label.f{display:block;margin:14px 0 6px;font-weight:600;font-size:15px}
 .btnrow{display:flex;gap:10px;margin-top:16px}
 .btnrow .btn{flex:1}
 textarea.input{min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.picker{appearance:none;border:0;background:none;cursor:pointer;min-height:48px;font-weight:700;font-size:18px}
+.sectionlbl{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:14px 0 4px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.chip{appearance:none;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 14px;min-height:44px;font-size:15px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+.mgrid .chip{border-radius:12px;min-height:48px}
 ol.tips{padding-left:20px;margin:6px 0} ol.tips li{margin:4px 0}
 </style>
 </head>
@@ -143,7 +150,7 @@ ol.tips{padding-left:20px;margin:6px 0} ol.tips li{margin:4px 0}
 "use strict";
 // All data stays in this browser's localStorage. Nothing is sent anywhere.
 const KEY = "careyBudgetTracker.v1";
-const YEAR = 2026;
+const SEED_YEAR = 2026; // the spreadsheet year
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const GROUPS = [
@@ -207,24 +214,50 @@ function seedData(){
   add("debt", "Jamie Auto Transfer to TD RRSP", fill(7, 11, 100));
   // Savings
   add("savings", "Transfers TO TFSA from MAIN ACCOUNT", z());
-  return { version: 1, year: YEAR, lines: L };
+  return { lines: L };
 }
 
-// ---- Storage ----
+// ---- Storage: { version: 2, years: { "2026": { lines: [...] }, "2027": {...} } } ----
 let data;
+function validYear(y){
+  return y && Array.isArray(y.lines) && y.lines.every(l => l && GROUP[l.group] && typeof l.name === "string" && Array.isArray(l.amounts) && l.amounts.length === 12);
+}
+// Accepts the v2 multi-year format, or an old single-year (v1) object, which becomes 2026.
+function normalize(d){
+  if (!d || typeof d !== "object") return null;
+  let years;
+  if (d.years && typeof d.years === "object") years = d.years;
+  else if (Array.isArray(d.lines)) years = { [String(d.year || SEED_YEAR)]: { lines: d.lines } };
+  else return null;
+  const out = { version: 2, years: {} };
+  for (const k of Object.keys(years)) {
+    if (!/^\d{4}$/.test(k) || !validYear(years[k])) return null;
+    out.years[k] = { lines: years[k].lines.map(l => ({ id: String(l.id), group: l.group, name: l.name,
+      amounts: l.amounts.map(v => Number(v) || 0), notes: Array.isArray(l.notes) ? l.notes : [] })) };
+  }
+  return Object.keys(out.years).length ? out : null;
+}
 function load(){
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const d = JSON.parse(raw); if (valid(d)) return d; }
+    if (raw) { const d = normalize(JSON.parse(raw)); if (d) { localStorage.setItem(KEY, JSON.stringify(d)); return d; } }
   } catch (e) {}
-  const d = seedData(); localStorage.setItem(KEY, JSON.stringify(d)); return d;
-}
-function valid(d){
-  return d && Array.isArray(d.lines) && d.lines.every(l => l && GROUP[l.group] && typeof l.name === "string" && Array.isArray(l.amounts) && l.amounts.length === 12);
+  const d = { version: 2, years: { [SEED_YEAR]: seedData() } }; localStorage.setItem(KEY, JSON.stringify(d)); return d;
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { toast("Couldn't save on this phone"); } }
 data = load();
-data.lines.forEach(l => { if (!Array.isArray(l.notes)) l.notes = []; l.amounts = l.amounts.map(v => Number(v) || 0); });
+
+// Same category lines as the nearest year you already have (or the spreadsheet), with $0 amounts.
+function blankYear(y){
+  const have = Object.keys(data.years).map(Number);
+  let src = seedData();
+  if (have.length) { const near = have.sort((a, b) => Math.abs(a - y) - Math.abs(b - y) || b - a)[0]; src = data.years[near]; }
+  return { lines: src.lines.map(l => ({ id: l.id, group: l.group, name: l.name, amounts: Array(12).fill(0), notes: [] })) };
+}
+// Years without saved data are shown as blank templates and only saved once you enter something.
+function yd(){ if (!data.years[year]) { if (!draft || draft.y !== year) draft = { y: year, d: blankYear(year) }; return draft.d; } return data.years[year]; }
+function commit(){ if (!data.years[year] && draft && draft.y === year) { data.years[year] = draft.d; draft = null; } save(); }
+let draft = null;
 
 // ---- Money ----
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -233,16 +266,18 @@ function money(n){ n = r2(n); const s = fmtCAD.format(Math.abs(n)).replace(/^CA/
 function signed(n){ n = r2(n); return (n > 0 ? "+" : "") + money(n); }
 
 // ---- Totals (always computed from lines) ----
-const lines = g => data.lines.filter(l => l.group === g);
+const lines = g => yd().lines.filter(l => l.group === g);
 const groupTotal = (g, m) => r2(lines(g).reduce((s, l) => s + (l.amounts[m] || 0), 0));
 const incomeM = m => groupTotal("income", m);
 const expenseM = m => r2(GROUPS.filter(g => !g.income).reduce((s, g) => s + groupTotal(g.id, m), 0));
 const cashM = m => r2(incomeM(m) - expenseM(m));
+function yearCash(y){ const d = data.years[y]; if (!d) return 0; return r2(d.lines.reduce((s, l) => s + (GROUP[l.group].income ? 1 : -1) * l.amounts.reduce((a, b) => a + b, 0), 0)); }
 const sum12 = f => r2(MONTHS.reduce((s, _, m) => s + f(m), 0));
 
 // ---- State ----
-function defaultMonth(){ const d = new Date(); return d.getFullYear() === YEAR ? d.getMonth() : (d.getFullYear() > YEAR ? 11 : 0); }
-let month = defaultMonth();
+const now = new Date();
+let year = now.getFullYear();
+let month = now.getMonth();
 let tab = "home";
 
 // ---- Helpers ----
@@ -253,11 +288,19 @@ function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add
 function parseAmt(v){ v = String(v).replace(/[$,\s]/g, ""); if (v === "") return NaN; const n = Number(v); return isFinite(n) ? r2(n) : NaN; }
 const cls = n => n < 0 ? "neg" : "pos";
 
+function yearNav(){
+  return `<div class="monthnav">
+    <button class="iconbtn" data-act="prevY" aria-label="Previous year">‹</button>
+    <button class="title picker" data-act="picker" aria-label="Pick year">${year} <span class="muted">▾</span></button>
+    <button class="iconbtn" data-act="nextY" aria-label="Next year">›</button>
+  </div>`;
+}
+const yearBadge = () => data.years[year] ? "" : `<p class="small muted" style="text-align:center;margin:6px 0 0">No ${year} amounts yet. Add or edit anything to start tracking ${year}.</p>`;
 function monthNav(){
   return `<div class="monthnav">
-    <button class="iconbtn" data-act="prev" aria-label="Previous month" ${month === 0 ? "disabled style='opacity:.35'" : ""}>‹</button>
-    <div class="title">${MONTHS_LONG[month]} ${YEAR}</div>
-    <button class="iconbtn" data-act="next" aria-label="Next month" ${month === 11 ? "disabled style='opacity:.35'" : ""}>›</button>
+    <button class="iconbtn" data-act="prev" aria-label="Previous month">‹</button>
+    <button class="title picker" data-act="picker" aria-label="Pick month and year">${MONTHS_LONG[month]} ${year} <span class="muted">▾</span></button>
+    <button class="iconbtn" data-act="next" aria-label="Next month">›</button>
   </div>`;
 }
 
@@ -268,7 +311,7 @@ function renderHome(){
   const max = Math.max(1, ...groups.map(x => x.t));
   $("#tab-home").innerHTML = `
     <h1>Budget</h1>
-    ${monthNav()}
+    ${monthNav()}${yearBadge()}
     <div class="card hero">
       <div class="lbl">${cf < 0 ? "Over budget" : "Left this month"}</div>
       <div class="big ${cls(cf)}">${money(cf)}</div>
@@ -298,7 +341,7 @@ function renderMonth(){
   const inc = incomeM(month), exp = expenseM(month), cf = r2(inc - exp);
   $("#tab-month").innerHTML = `
     <h1>Month</h1>
-    ${monthNav()}
+    ${monthNav()}${yearBadge()}
     <div class="card">
       <div class="trio" style="margin-top:0">
         <div><span>Income</span><b class="pos">${money(inc)}</b></div>
@@ -328,7 +371,8 @@ function renderYear(){
   const maxIE = Math.max(1, inc, exp);
   const red = cfs.filter(v => v < 0).length;
   $("#tab-year").innerHTML = `
-    <h1>${YEAR} at a glance</h1>
+    <h1>Year</h1>
+    ${yearNav()}${yearBadge()}
     <div class="card hero">
       <div class="lbl">Year cash flow</div>
       <div class="big ${cls(cf)}">${money(cf)}</div>
@@ -372,9 +416,15 @@ function renderSettings(){
       <input type="file" id="impFile" accept="application/json,.json" class="hidden">
     </div>
     <div class="card">
+      <h3>Years</h3>
+      <p class="small muted">Switch years with the ‹ › arrows or by tapping the month/year title. Any year works; a new year starts with your categories at $0.</p>
+      ${Object.keys(data.years).sort().map(y => `<div class="line" style="cursor:default"><div class="grow"><div class="nm">${y}${Number(y) === SEED_YEAR ? " <span class='small muted'>(from spreadsheet)</span>" : ""}</div><div class="notes">Cash flow ${signed(yearCash(Number(y)))}</div></div><button class="btn ghost" data-act="pickY2" data-y="${y}" style="min-height:44px;padding:8px 12px">Open</button><button class="iconbtn" data-act="delYear" data-y="${y}" aria-label="Delete ${y}">🗑</button></div>`).join("")}
+      <button class="btn secondary block" data-act="addYear" style="margin-top:10px">+ Start ${Math.max(...Object.keys(data.years).map(Number)) + 1}</button>
+    </div>
+    <div class="card">
       <h3>Reset</h3>
-      <p class="small muted">Put every amount back to your “2026 Income and Expense tracker v.1” spreadsheet. Your edits will be lost.</p>
-      <button class="btn danger block" data-act="reset">Reset to spreadsheet</button>
+      <p class="small muted">Put every 2026 amount back to your “2026 Income and Expense tracker v.1” spreadsheet. Your 2026 edits will be lost; other years are kept.</p>
+      <button class="btn danger block" data-act="reset">Reset 2026 to spreadsheet</button>
     </div>
     <div class="card">
       <h3>Add to your home screen</h3>
@@ -383,7 +433,7 @@ function renderSettings(){
       <p class="small"><b>iPhone (Safari):</b> tap <b>Share</b> → <b>Add to Home Screen</b>.</p>
       <p class="small muted">Once installed it opens full screen and works offline.</p>
     </div>
-    <p class="note">Carey's Budget Tracker · ${YEAR} · CAD</p>`;
+    <p class="note">Carey's Budget Tracker · CAD</p>`;
 }
 
 function render(){
@@ -406,7 +456,23 @@ function catOptions(type, sel){
   const gs = type === "income" ? GROUPS.filter(g => g.income) : GROUPS.filter(g => !g.income);
   return gs.map(g => `<optgroup label="${esc(g.name)}">${lines(g.id).map(l => `<option value="${esc(l.id)}" ${l.id === sel ? "selected" : ""}>${esc(l.name)}</option>`).join("")}<option value="new:${g.id}">+ New ${g.income ? "income source" : "category in " + esc(g.name)}…</option></optgroup>`).join("");
 }
-function monthOptions(sel){ return MONTHS_LONG.map((n, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${n} ${YEAR}</option>`).join(""); }
+function yearRange(){
+  const ys = Object.keys(data.years).map(Number).concat([year, now.getFullYear()]);
+  const lo = Math.min(...ys) - 2, hi = Math.max(...ys) + 2, out = [];
+  for (let y = lo; y <= hi; y++) out.push(y);
+  return out;
+}
+function yearOptions(){ return yearRange().map(y => `<option value="${y}" ${y === year ? "selected" : ""}>${y}</option>`).join(""); }
+function openPicker(){
+  const ys = yearRange();
+  openSheet("Pick month & year", `
+    <div class="sectionlbl">Year</div>
+    <div class="chips">${ys.map(y => `<button class="chip ${y === year ? "on" : ""}" data-act="pickY" data-y="${y}">${y}${data.years[y] ? "" : " ·"}</button>`).join("")}</div>
+    <div class="sectionlbl">Month in ${year}</div>
+    <div class="mgrid">${MONTHS.map((n, i) => `<button class="chip ${i === month ? "on" : ""}" data-act="pickM" data-m="${i}">${n}</button>`).join("")}</div>
+    <p class="small muted">Years marked · have no amounts yet. They start with your usual categories at $0.</p>`);
+}
+function monthOptions(sel){ return MONTHS_LONG.map((n, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${n}</option>`).join(""); }
 
 let addType = "expense";
 function openAdd(type, preset){
@@ -418,8 +484,10 @@ function openAdd(type, preset){
     <div id="newWrap" class="hidden"><label class="f" for="aNew">New category name</label><input id="aNew" class="input" maxlength="60" placeholder="e.g. Car repairs"></div>
     <label class="f" for="aAmt">Amount (CAD)</label>
     <input id="aAmt" class="input" inputmode="decimal" placeholder="0.00" autocomplete="off">
-    <label class="f" for="aMonth">Month</label>
-    <select id="aMonth" class="input">${monthOptions(month)}</select>
+    <div class="row" style="gap:10px">
+      <div class="grow"><label class="f" for="aMonth">Month</label><select id="aMonth" class="input">${monthOptions(month)}</select></div>
+      <div style="width:120px"><label class="f" for="aYear">Year</label><select id="aYear" class="input">${yearOptions()}</select></div>
+    </div>
     <label class="f" for="aNote">Note (optional)</label>
     <input id="aNote" class="input" maxlength="80" placeholder="e.g. Costco run">
     <p class="small muted">Adds to whatever is already in that category for the month.</p>
@@ -427,6 +495,7 @@ function openAdd(type, preset){
   const cat = $("#aCat");
   const sync = () => $("#newWrap").classList.toggle("hidden", !cat.value.startsWith("new:"));
   cat.onchange = sync; sync();
+  $("#aYear").onchange = e => { const keep = cat.value; year = Number(e.target.value); cat.innerHTML = catOptions(addType, keep); if (cat.value !== keep && !keep.startsWith("new:")) cat.selectedIndex = 0; sync(); render(); };
   $("#typeSeg").onclick = e => { const b = e.target.closest("button"); if (b) openAdd(b.dataset.type); };
   $("#aSave").onclick = () => {
     const amt = parseAmt($("#aAmt").value);
@@ -436,25 +505,25 @@ function openAdd(type, preset){
     if (cat.value.startsWith("new:")) {
       const name = $("#aNew").value.trim(); if (!name) { toast("Name the new category"); $("#aNew").focus(); return; }
       line = newLine(cat.value.slice(4), name);
-    } else line = data.lines.find(l => l.id === cat.value);
+    } else line = yd().lines.find(l => l.id === cat.value);
     if (!line) return;
     line.amounts[m] = r2((line.amounts[m] || 0) + amt);
     const note = $("#aNote").value.trim();
     if (note) line.notes.push({ m, text: note + " (" + money(amt) + ")" });
-    save(); closeSheet(); month = m; render();
+    commit(); closeSheet(); month = m; render();
     toast(`${money(amt)} added to ${line.name} · ${MONTHS[m]}`);
   };
   setTimeout(() => $("#aAmt").focus(), 250);
 }
 function newLine(group, name){
   const l = { id: group + "-c" + Date.now().toString(36), group, name, amounts: Array(12).fill(0), notes: [] };
-  data.lines.push(l); return l;
+  yd().lines.push(l); return l;
 }
 function openEdit(id){
-  const l = data.lines.find(x => x.id === id); if (!l) return;
+  const l = yd().lines.find(x => x.id === id); if (!l) return;
   const v = l.amounts[month] || 0; const ns = l.notes.filter(n => n.m === month);
   openSheet(l.name, `
-    <p class="small muted" style="margin-top:4px">${esc(GROUP[l.group].name)} · ${MONTHS_LONG[month]} ${YEAR}</p>
+    <p class="small muted" style="margin-top:4px">${esc(GROUP[l.group].name)} · ${MONTHS_LONG[month]} ${year}</p>
     <label class="f" for="eAmt">Amount for ${MONTHS_LONG[month]} (CAD)</label>
     <input id="eAmt" class="input" inputmode="decimal" value="${v ? v.toFixed(2) : ""}" placeholder="0.00" autocomplete="off">
     <label class="f" for="eName">Name</label>
@@ -467,12 +536,12 @@ function openEdit(id){
     const raw = $("#eAmt").value.trim(); const a = raw === "" ? 0 : parseAmt(raw);
     if (isNaN(a) || a < 0) { toast("Enter a valid amount"); return; }
     l.amounts[month] = a; const nm = $("#eName").value.trim(); if (nm) l.name = nm;
-    save(); closeSheet(); render(); toast("Saved");
+    commit(); closeSheet(); render(); toast("Saved");
   };
-  $("#eClear").onclick = () => { l.amounts[month] = 0; l.notes = l.notes.filter(n => n.m !== month); save(); closeSheet(); render(); toast(`${MONTHS[month]} cleared`); };
+  $("#eClear").onclick = () => { l.amounts[month] = 0; l.notes = l.notes.filter(n => n.m !== month); commit(); closeSheet(); render(); toast(`${MONTHS[month]} cleared`); };
   $("#eDel").onclick = () => {
     if (!confirm(`Delete “${l.name}” for the whole year?`)) return;
-    data.lines = data.lines.filter(x => x !== l); save(); closeSheet(); render(); toast("Line deleted");
+    yd().lines = yd().lines.filter(x => x !== l); commit(); closeSheet(); render(); toast("Line deleted");
   };
 }
 function openNewLine(group){
@@ -486,7 +555,7 @@ function openNewLine(group){
     const name = $("#nName").value.trim(); if (!name) { toast("Enter a name"); return; }
     const a = $("#nAmt").value.trim() ? parseAmt($("#nAmt").value) : 0;
     if (isNaN(a) || a < 0) { toast("Enter a valid amount"); return; }
-    const l = newLine(group, name); l.amounts[month] = a; save(); closeSheet(); render(); toast("Added");
+    const l = newLine(group, name); l.amounts[month] = a; commit(); closeSheet(); render(); toast("Added");
   };
   setTimeout(() => $("#nName").focus(), 250);
 }
@@ -495,16 +564,16 @@ function openNewLine(group){
 function exportJSON(){
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = `carey-budget-${YEAR}-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `carey-budget-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   toast("Backup downloaded");
 }
 function importJSON(text){
-  let d; try { d = JSON.parse(text); } catch (e) { toast("That isn't valid JSON"); return; }
-  if (!valid(d)) { toast("That doesn't look like a budget backup"); return; }
-  if (!confirm("Replace everything on this phone with the imported data?")) return;
-  d.lines.forEach(l => { l.notes = Array.isArray(l.notes) ? l.notes : []; l.amounts = l.amounts.map(v => Number(v) || 0); });
-  data = d; save(); render(); toast("Imported");
+  let d; try { d = normalize(JSON.parse(text)); } catch (e) { toast("That isn't valid JSON"); return; }
+  if (!d) { toast("That doesn't look like a budget backup"); return; }
+  const ys = Object.keys(d.years).sort().join(", ");
+  if (!confirm(`Replace everything on this phone with the imported data (${ys})?`)) return;
+  data = d; draft = null; save(); render(); toast("Imported " + ys);
 }
 
 // ---- Events ----
@@ -512,8 +581,22 @@ document.addEventListener("click", e => {
   const t = e.target.closest("[data-act],[data-tab]"); if (!t) return;
   if (t.dataset.tab) { showTab(t.dataset.tab); return; }
   const a = t.dataset.act;
-  if (a === "prev" && month > 0) { month--; render(); }
-  else if (a === "next" && month < 11) { month++; render(); }
+  if (a === "prev") { if (month === 0) { month = 11; year--; } else month--; render(); }
+  else if (a === "next") { if (month === 11) { month = 0; year++; } else month++; render(); }
+  else if (a === "prevY") { year--; render(); }
+  else if (a === "nextY") { year++; render(); }
+  else if (a === "picker") openPicker();
+  else if (a === "pickY") { year = Number(t.dataset.y); openPicker(); render(); }
+  else if (a === "pickM") { month = Number(t.dataset.m); closeSheet(); render(); }
+  else if (a === "pickY2") { year = Number(t.dataset.y); showTab("year"); }
+  else if (a === "addYear") {
+    const y = Math.max(...Object.keys(data.years).map(Number)) + 1; year = y; data.years[y] = blankYear(y); draft = null; save(); month = 0; showTab("month"); toast(`${y} started with $0 amounts`);
+  }
+  else if (a === "delYear") {
+    const y = Number(t.dataset.y);
+    if (!confirm(`Delete all ${y} amounts on this phone?`)) return;
+    delete data.years[y]; if (!Object.keys(data.years).length) data.years[SEED_YEAR] = seedData(); save(); render(); toast(`${y} deleted`);
+  }
   else if (a === "quick") openAdd(t.dataset.type);
   else if (a === "gotoMonth") showTab("month");
   else if (a === "pickMonth") { month = Number(t.dataset.m); showTab("month"); }
@@ -527,8 +610,8 @@ document.addEventListener("click", e => {
   else if (a === "importText") importJSON($("#imp").value);
   else if (a === "importFile") $("#impFile").click();
   else if (a === "reset") {
-    if (!confirm("Reset every amount to your 2026 spreadsheet? Your edits on this phone will be lost.")) return;
-    data = seedData(); save(); render(); toast("Reset to spreadsheet");
+    if (!confirm("Reset all 2026 amounts to your spreadsheet? Your 2026 edits on this phone will be lost. Other years are kept.")) return;
+    data.years[SEED_YEAR] = seedData(); save(); year = SEED_YEAR; render(); toast("2026 reset to spreadsheet");
   }
 });
 document.addEventListener("change", e => {

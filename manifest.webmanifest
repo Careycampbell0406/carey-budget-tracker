@@ -1,0 +1,14 @@
+{
+  "name": "Carey's Budget Tracker",
+  "short_name": "Carey Budget",
+  "description": "Carey & Jamie's 2026 household budget. Works offline; data stays on your phone.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f9",
+  "theme_color": "#0f7a4a",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

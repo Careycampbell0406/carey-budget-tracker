@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carey's Budget Tracker</title>
+<meta name="description" content="Carey & Jamie's 2026 household budget. Works offline; your data stays on your phone.">
+<meta name="theme-color" content="#0f7a4a" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101418" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Carey Budget">
+<meta name="format-detection" content="telephone=no">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --text:#1b1f24; --muted:#6b7480; --line:#e4e7eb;
+  --accent:#0f7a4a; --accent2:#0b6a40; --accent-soft:#e2f2ea;
+  --pos:#0f7a4a; --warn:#d6453d; --warn-soft:#fde8e7; --track:#e9ecef;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 4px 14px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#101418; --card:#1a2027; --text:#eef1f4; --muted:#9aa4af; --line:#2a323b;
+    --accent:#1f9d62; --accent2:#5fd39b; --accent-soft:#15322a;
+    --pos:#4fcf8f; --warn:#ff7b72; --warn-soft:#3a1d1c; --track:#2a323b;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text)}
+body{font:17px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(84px + env(safe-area-inset-bottom)) env(safe-area-inset-left);min-height:100vh;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{font-size:17px}
+.wrap{max-width:560px;margin:0 auto;padding:12px 16px}
+h1{font-size:26px;margin:6px 0 2px;letter-spacing:-.3px}
+h2{font-size:20px;margin:0 0 10px}
+h3{font-size:16px;margin:0}
+.muted{color:var(--muted)} .small{font-size:14px} .tiny{font-size:12.5px}
+.card{background:var(--card);border-radius:18px;padding:16px;margin:12px 0;box-shadow:var(--shadow);border:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:10px} .between{justify-content:space-between} .grow{flex:1;min-width:0}
+.btn{appearance:none;border:0;border-radius:14px;min-height:48px;padding:12px 18px;font-weight:600;cursor:pointer;
+  background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:active{transform:scale(.98);opacity:.9}
+.btn.secondary{background:var(--accent-soft);color:var(--accent2)}
+.btn.ghost{background:transparent;color:var(--accent2);border:1px solid var(--line)}
+.btn.danger{background:var(--warn-soft);color:var(--warn)}
+.btn.block{width:100%}
+.iconbtn{appearance:none;background:var(--card);border:1px solid var(--line);width:48px;height:48px;border-radius:12px;font-size:20px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none}
+label.f{display:block;margin:14px 0 6px;font-weight:600;font-size:15px}
+.input{width:100%;min-height:48px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;outline:none}
+.input:focus{border-color:var(--accent)}
+.seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;appearance:none;border:0;background:transparent;border-radius:9px;min-height:44px;padding:6px 8px;font-weight:600;font-size:15px;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.monthnav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+.monthnav .title{text-align:center;flex:1;font-weight:700;font-size:18px}
+.hero{text-align:center;padding:20px 16px}
+.hero .lbl{font-size:14px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.hero .big{font-size:42px;font-weight:800;letter-spacing:-1px;line-height:1.15;margin:4px 0;word-break:break-word}
+.pos{color:var(--pos)!important} .neg{color:var(--warn)!important}
+.trio{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.trio div{background:var(--bg);border-radius:14px;padding:10px;text-align:center}
+.trio b{display:block;font-size:19px}
+.trio span{font-size:13px;color:var(--muted)}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.line{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line);cursor:pointer;min-height:48px}
+.line:first-of-type{border-top:0}
+.line .nm{font-weight:550;word-break:break-word}
+.line .amt{white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.line.zero .amt{color:var(--muted);font-weight:400}
+.sechd{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.sechd .tot{font-weight:750;font-variant-numeric:tabular-nums}
+.addline{appearance:none;border:0;background:none;color:var(--accent2);font-weight:650;font-size:15px;padding:8px 0;min-height:48px;cursor:pointer}
+.bar{height:8px;background:var(--track);border-radius:4px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:4px}
+.bar.neg i{background:var(--warn)}
+.grp{padding:10px 0;border-top:1px solid var(--line)} .grp:first-of-type{border-top:0}
+.yrow{display:grid;grid-template-columns:44px 1fr 96px;align-items:center;gap:8px;padding:8px 6px;border-radius:10px;cursor:pointer;min-height:48px}
+.yrow.red{background:var(--warn-soft)}
+.yrow .mo{font-weight:700}
+.yrow .val{text-align:right;font-weight:650;font-variant-numeric:tabular-nums;font-size:15px}
+.cfbar{position:relative;height:14px}
+.cfbar::before{content:"";position:absolute;left:50%;top:-4px;bottom:-4px;width:1px;background:var(--line)}
+.cfbar i{position:absolute;top:0;height:100%;border-radius:4px}
+.cfbar i.p{left:50%;background:var(--accent)} .cfbar i.n{right:50%;background:var(--warn)}
+.ivse{display:flex;flex-direction:column;gap:4px}
+.ivse .bar{margin-top:2px}
+.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
+  padding:6px 8px calc(6px + env(safe-area-inset-bottom));display:flex;justify-content:space-around;z-index:20}
+.tabbar button{appearance:none;border:0;background:none;flex:1;min-height:52px;font-size:12px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-width:0}
+.tabbar button .ic{font-size:22px;line-height:1}
+.tabbar button.on{color:var(--accent2)}
+.tabbar .addtab .ic{background:var(--accent);color:#fff;width:46px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:40;display:none}
+.overlay.show{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92vh;max-height:92dvh;background:var(--card);border-radius:20px 20px 0 0;z-index:50;
+  transform:translateY(105%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s;display:flex;flex-direction:column;max-width:600px;margin:0 auto}
+.sheet.show{transform:none;visibility:visible;transition:transform .22s ease}
+.sheet .hd{padding:14px 16px 8px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.sheet .bd{padding:8px 16px calc(20px + env(safe-area-inset-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#1b1f24;color:#fff;
+  padding:10px 16px;border-radius:12px;font-size:15px;opacity:0;transition:all .2s;z-index:60;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.hidden{display:none!important}
+.note{font-size:12.5px;color:var(--muted);text-align:center;margin:14px 8px}
+.notes{font-size:13px;color:var(--muted);margin-top:2px}
+.btnrow{display:flex;gap:10px;margin-top:16px}
+.btnrow .btn{flex:1}
+textarea.input{min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+ol.tips{padding-left:20px;margin:6px 0} ol.tips li{margin:4px 0}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section id="tab-home"></section>
+  <section id="tab-month" class="hidden"></section>
+  <section id="tab-year" class="hidden"></section>
+  <section id="tab-settings" class="hidden"></section>
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button data-tab="home" class="on"><span class="ic">⌂</span>Home</button>
+  <button data-tab="month"><span class="ic">▤</span>Month</button>
+  <button data-tab="add" class="addtab" aria-label="Add income or expense"><span class="ic">+</span>Add</button>
+  <button data-tab="year"><span class="ic">▥</span>Year</button>
+  <button data-tab="settings"><span class="ic">⚙︎</span>Settings</button>
+</nav>
+
+<div class="overlay" id="overlay"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="hd"><h2 id="sheetTitle" class="grow" style="margin:0"></h2><button class="iconbtn" id="sheetClose" aria-label="Close">✕</button></div>
+  <div class="bd" id="sheetBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+// All data stays in this browser's localStorage. Nothing is sent anywhere.
+const KEY = "careyBudgetTracker.v1";
+const YEAR = 2026;
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const GROUPS = [
+  {id:"income",  name:"Income",         income:true},
+  {id:"home",    name:"Home"},
+  {id:"sports",  name:"Family Sports"},
+  {id:"variable",name:"Variable"},
+  {id:"debt",    name:"Debt Repayment"},
+  {id:"savings", name:"Savings"}
+];
+const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
+
+// ---- Seed: Carey's "2026 Income and Expense tracker v.1.xlsx" (Campbell sheet) ----
+const z = () => Array(12).fill(0);
+const only = (m, v) => { const a = z(); a[m] = v; return a; };
+const fill = (from, to, v, base) => { const a = base || z(); for (let i = from; i <= to; i++) a[i] = v; return a; };
+function seedData(){
+  const L = [];
+  const add = (group, name, amounts) => L.push({ id: group + "-" + (L.length + 1), group, name, amounts, notes: [] });
+  // Income
+  add("income", "Carey", fill(7, 11, 2400));
+  add("income", "Jamie", fill(7, 11, 6000));
+  add("income", "Carey Commission (Month end Pay)", only(7, 1118));
+  add("income", "Jamie Etsy", z());
+  add("income", "Transfers FROM TFSA back to MAIN ACCOUNT", z());
+  // Home
+  add("home", "Wasaga Distribution - Power", only(7, 438.07));
+  add("home", "Enbridge - Gas", only(7, 296.39));
+  add("home", "Wasaga Water /Sewer", z());
+  add("home", "Rogers", only(7, 280.10));
+  add("home", "Home Insurance", fill(0, 11, 233.32));
+  add("home", "Vehicle Insurance", fill(0, 11, 202.58));
+  add("home", "Snowmobile Insurance", fill(0, 11, 61.72));
+  add("home", "407 ETR", only(0, 288.16));
+  // Family sports
+  add("sports", "Caden Golf Membership", z());
+  add("sports", "Caden Hockey Registration", fill(8, 11, 431.25));
+  add("sports", "Caden Golf - Coaching (Henry)", z());
+  add("sports", "Caden - Golf Equipment", z());
+  add("sports", "Caden Golf - Pepsi Team/Events", z());
+  add("sports", "Caden Hockey (Hotels)", z());
+  add("sports", "Caden Hockey (Training)", z());
+  add("sports", "Caden Hockey (equipment)", z());
+  add("sports", "Other sports", only(2, 600));
+  // Variable
+  add("variable", "Eating out", only(7, 199.26));
+  add("variable", "Groceries", only(7, 1443.34));
+  add("variable", "Gas", only(7, 188.10));
+  add("variable", "Pet Food", only(7, 93.77));
+  add("variable", "Extras", only(7, 1313.16));
+  add("variable", "Carey Fitness", fill(7, 11, 67.78));
+  add("variable", "Jamie Fitness", z());
+  // Debt repayment
+  add("debt", "Mortgage", fill(7, 11, 1793.70, fill(0, 6, 2099.11)));
+  add("debt", "Car payment", fill(9, 11, 770, fill(0, 8, 623.60)));
+  add("debt", "Carey Credit Card", z());
+  add("debt", "Jamie Credit Card", z());
+  add("debt", "Line of credit - (12.59%)", z());
+  add("debt", "Auto Transfer to Caden Savings Acct", fill(1, 11, 100, only(0, 150)));
+  add("debt", "Jamie Auto Transfer to Avisio RRSP", fill(1, 11, 100, only(0, 150)));
+  add("debt", "Jamie Auto Transfer to TD RRSP", fill(7, 11, 100));
+  // Savings
+  add("savings", "Transfers TO TFSA from MAIN ACCOUNT", z());
+  return { version: 1, year: YEAR, lines: L };
+}
+
+// ---- Storage ----
+let data;
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const d = JSON.parse(raw); if (valid(d)) return d; }
+  } catch (e) {}
+  const d = seedData(); localStorage.setItem(KEY, JSON.stringify(d)); return d;
+}
+function valid(d){
+  return d && Array.isArray(d.lines) && d.lines.every(l => l && GROUP[l.group] && typeof l.name === "string" && Array.isArray(l.amounts) && l.amounts.length === 12);
+}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { toast("Couldn't save on this phone"); } }
+data = load();
+data.lines.forEach(l => { if (!Array.isArray(l.notes)) l.notes = []; l.amounts = l.amounts.map(v => Number(v) || 0); });
+
+// ---- Money ----
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+const fmtCAD = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", currencyDisplay: "narrowSymbol", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function money(n){ n = r2(n); const s = fmtCAD.format(Math.abs(n)).replace(/^CA/, ""); return (n < 0 ? "−" : "") + s; }
+function signed(n){ n = r2(n); return (n > 0 ? "+" : "") + money(n); }
+
+// ---- Totals (always computed from lines) ----
+const lines = g => data.lines.filter(l => l.group === g);
+const groupTotal = (g, m) => r2(lines(g).reduce((s, l) => s + (l.amounts[m] || 0), 0));
+const incomeM = m => groupTotal("income", m);
+const expenseM = m => r2(GROUPS.filter(g => !g.income).reduce((s, g) => s + groupTotal(g.id, m), 0));
+const cashM = m => r2(incomeM(m) - expenseM(m));
+const sum12 = f => r2(MONTHS.reduce((s, _, m) => s + f(m), 0));
+
+// ---- State ----
+function defaultMonth(){ const d = new Date(); return d.getFullYear() === YEAR ? d.getMonth() : (d.getFullYear() > YEAR ? 11 : 0); }
+let month = defaultMonth();
+let tab = "home";
+
+// ---- Helpers ----
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+let toastT;
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2200); }
+function parseAmt(v){ v = String(v).replace(/[$,\s]/g, ""); if (v === "") return NaN; const n = Number(v); return isFinite(n) ? r2(n) : NaN; }
+const cls = n => n < 0 ? "neg" : "pos";
+
+function monthNav(){
+  return `<div class="monthnav">
+    <button class="iconbtn" data-act="prev" aria-label="Previous month" ${month === 0 ? "disabled style='opacity:.35'" : ""}>‹</button>
+    <div class="title">${MONTHS_LONG[month]} ${YEAR}</div>
+    <button class="iconbtn" data-act="next" aria-label="Next month" ${month === 11 ? "disabled style='opacity:.35'" : ""}>›</button>
+  </div>`;
+}
+
+// ---- Render: Home ----
+function renderHome(){
+  const inc = incomeM(month), exp = expenseM(month), cf = r2(inc - exp);
+  const groups = GROUPS.filter(g => !g.income).map(g => ({ g, t: groupTotal(g.id, month) }));
+  const max = Math.max(1, ...groups.map(x => x.t));
+  $("#tab-home").innerHTML = `
+    <h1>Budget</h1>
+    ${monthNav()}
+    <div class="card hero">
+      <div class="lbl">${cf < 0 ? "Over budget" : "Left this month"}</div>
+      <div class="big ${cls(cf)}">${money(cf)}</div>
+      <div class="trio">
+        <div><span>Income</span><b class="pos">${money(inc)}</b></div>
+        <div><span>Expenses</span><b>${money(exp)}</b></div>
+      </div>
+      <div class="small muted" style="margin-top:10px">Cash flow (income − expenses): <b class="${cls(cf)}">${signed(cf)}</b></div>
+    </div>
+    <div class="quick">
+      <button class="btn" data-act="quick" data-type="income">+ Income</button>
+      <button class="btn secondary" data-act="quick" data-type="expense">+ Expense</button>
+    </div>
+    <div class="card">
+      <div class="sechd"><h3>Where it goes</h3><span class="small muted">${MONTHS[month]}</span></div>
+      ${groups.map(({ g, t }) => `
+        <div class="grp" data-act="gotoMonth">
+          <div class="row between"><span>${esc(g.name)}</span><b style="font-variant-numeric:tabular-nums">${money(t)}</b></div>
+          <div class="bar"><i style="width:${(t / max * 100).toFixed(1)}%"></i></div>
+        </div>`).join("")}
+    </div>
+    <p class="note">Data stays on this phone. Tap Month to see every line.</p>`;
+}
+
+// ---- Render: Month ----
+function renderMonth(){
+  const inc = incomeM(month), exp = expenseM(month), cf = r2(inc - exp);
+  $("#tab-month").innerHTML = `
+    <h1>Month</h1>
+    ${monthNav()}
+    <div class="card">
+      <div class="trio" style="margin-top:0">
+        <div><span>Income</span><b class="pos">${money(inc)}</b></div>
+        <div><span>Expenses</span><b>${money(exp)}</b></div>
+      </div>
+      <div class="row between" style="margin-top:10px"><b>Cash flow</b><b class="${cls(cf)}">${signed(cf)}</b></div>
+    </div>
+    ${GROUPS.map(g => `
+      <div class="card">
+        <div class="sechd"><h3>${esc(g.name)}</h3><span class="tot ${g.income ? "pos" : ""}">${money(groupTotal(g.id, month))}</span></div>
+        ${lines(g.id).map(l => {
+          const v = l.amounts[month] || 0; const ns = l.notes.filter(n => n.m === month);
+          return `<div class="line ${v ? "" : "zero"}" data-act="edit" data-id="${esc(l.id)}">
+            <div class="grow"><div class="nm">${esc(l.name)}</div>${ns.length ? `<div class="notes">${ns.map(n => esc(n.text)).join(" · ")}</div>` : ""}</div>
+            <div class="amt">${money(v)}</div></div>`;
+        }).join("")}
+        <button class="addline" data-act="newline" data-group="${g.id}">+ Add ${g.income ? "income source" : "category"}</button>
+      </div>`).join("")}
+    <p class="note">Tap any line to change ${MONTHS_LONG[month]}'s amount or delete it.</p>`;
+}
+
+// ---- Render: Year ----
+function renderYear(){
+  const inc = sum12(incomeM), exp = sum12(expenseM), cf = r2(inc - exp);
+  const cfs = MONTHS.map((_, m) => cashM(m));
+  const maxAbs = Math.max(1, ...cfs.map(Math.abs));
+  const maxIE = Math.max(1, inc, exp);
+  const red = cfs.filter(v => v < 0).length;
+  $("#tab-year").innerHTML = `
+    <h1>${YEAR} at a glance</h1>
+    <div class="card hero">
+      <div class="lbl">Year cash flow</div>
+      <div class="big ${cls(cf)}">${money(cf)}</div>
+      <div class="ivse" style="text-align:left;margin-top:12px">
+        <div class="row between small"><span>Income</span><b class="pos">${money(inc)}</b></div>
+        <div class="bar"><i style="width:${(inc / maxIE * 100).toFixed(1)}%"></i></div>
+        <div class="row between small" style="margin-top:8px"><span>Expenses</span><b>${money(exp)}</b></div>
+        <div class="bar neg"><i style="width:${(exp / maxIE * 100).toFixed(1)}%"></i></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sechd"><h3>Month by month</h3><span class="small ${red ? "neg" : "muted"}">${red} month${red === 1 ? "" : "s"} in the red</span></div>
+      ${cfs.map((v, m) => `
+        <div class="yrow ${v < 0 ? "red" : ""}" data-act="pickMonth" data-m="${m}">
+          <span class="mo">${MONTHS[m]}</span>
+          <div class="cfbar"><i class="${v < 0 ? "n" : "p"}" style="width:${(Math.abs(v) / maxAbs * 50).toFixed(1)}%"></i></div>
+          <span class="val ${cls(v)}">${signed(v)}</span>
+        </div>`).join("")}
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:6px">By group (year)</h3>
+      ${GROUPS.map(g => `<div class="row between line" style="cursor:default"><span>${esc(g.name)}</span><b class="${g.income ? "pos" : ""}">${money(sum12(m => groupTotal(g.id, m)))}</b></div>`).join("")}
+    </div>
+    <p class="note">Tap a month to open it.</p>`;
+}
+
+// ---- Render: Settings ----
+function renderSettings(){
+  $("#tab-settings").innerHTML = `
+    <h1>Settings</h1>
+    <div class="card">
+      <h3>Your data stays on this phone</h3>
+      <p class="small muted">Everything is saved in this browser only. Nothing is sent to a server. Export a backup now and then, especially before clearing browser data.</p>
+    </div>
+    <div class="card">
+      <h3>Backup</h3>
+      <div class="btnrow"><button class="btn secondary" data-act="export">Export JSON</button><button class="btn ghost" data-act="copy">Copy JSON</button></div>
+      <label class="f" for="imp">Import JSON</label>
+      <textarea id="imp" class="input" placeholder="Paste exported JSON here"></textarea>
+      <div class="btnrow"><button class="btn ghost" data-act="importFile">Choose file…</button><button class="btn" data-act="importText">Import</button></div>
+      <input type="file" id="impFile" accept="application/json,.json" class="hidden">
+    </div>
+    <div class="card">
+      <h3>Reset</h3>
+      <p class="small muted">Put every amount back to your “2026 Income and Expense tracker v.1” spreadsheet. Your edits will be lost.</p>
+      <button class="btn danger block" data-act="reset">Reset to spreadsheet</button>
+    </div>
+    <div class="card">
+      <h3>Add to your home screen</h3>
+      <p class="small"><b>Android (Chrome):</b></p>
+      <ol class="tips small"><li>Open this page in Chrome.</li><li>Tap the <b>⋮</b> menu (top right).</li><li>Tap <b>Install and create shortcut</b> (older Chrome: <b>Install app</b> / <b>Add to Home screen</b>).</li></ol>
+      <p class="small"><b>iPhone (Safari):</b> tap <b>Share</b> → <b>Add to Home Screen</b>.</p>
+      <p class="small muted">Once installed it opens full screen and works offline.</p>
+    </div>
+    <p class="note">Carey's Budget Tracker · ${YEAR} · CAD</p>`;
+}
+
+function render(){
+  ({ home: renderHome, month: renderMonth, year: renderYear, settings: renderSettings })[tab]();
+}
+function showTab(t){
+  if (t === "add") { openAdd(); return; }
+  tab = t;
+  ["home","month","year","settings"].forEach(x => $("#tab-" + x).classList.toggle("hidden", x !== t));
+  document.querySelectorAll("#tabbar button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  render(); window.scrollTo(0, 0);
+}
+
+// ---- Sheet ----
+function openSheet(title, html){ $("#sheetTitle").textContent = title; $("#sheetBody").innerHTML = html; $("#overlay").classList.add("show"); $("#sheet").classList.add("show"); }
+function closeSheet(){ $("#overlay").classList.remove("show"); $("#sheet").classList.remove("show"); }
+$("#overlay").onclick = closeSheet; $("#sheetClose").onclick = closeSheet;
+
+function catOptions(type, sel){
+  const gs = type === "income" ? GROUPS.filter(g => g.income) : GROUPS.filter(g => !g.income);
+  return gs.map(g => `<optgroup label="${esc(g.name)}">${lines(g.id).map(l => `<option value="${esc(l.id)}" ${l.id === sel ? "selected" : ""}>${esc(l.name)}</option>`).join("")}<option value="new:${g.id}">+ New ${g.income ? "income source" : "category in " + esc(g.name)}…</option></optgroup>`).join("");
+}
+function monthOptions(sel){ return MONTHS_LONG.map((n, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${n} ${YEAR}</option>`).join(""); }
+
+let addType = "expense";
+function openAdd(type, preset){
+  if (type) addType = type;
+  openSheet("Add", `
+    <div class="seg" id="typeSeg"><button data-type="income" class="${addType === "income" ? "on" : ""}">Income</button><button data-type="expense" class="${addType === "expense" ? "on" : ""}">Expense</button></div>
+    <label class="f" for="aCat">Category</label>
+    <select id="aCat" class="input">${catOptions(addType, preset)}</select>
+    <div id="newWrap" class="hidden"><label class="f" for="aNew">New category name</label><input id="aNew" class="input" maxlength="60" placeholder="e.g. Car repairs"></div>
+    <label class="f" for="aAmt">Amount (CAD)</label>
+    <input id="aAmt" class="input" inputmode="decimal" placeholder="0.00" autocomplete="off">
+    <label class="f" for="aMonth">Month</label>
+    <select id="aMonth" class="input">${monthOptions(month)}</select>
+    <label class="f" for="aNote">Note (optional)</label>
+    <input id="aNote" class="input" maxlength="80" placeholder="e.g. Costco run">
+    <p class="small muted">Adds to whatever is already in that category for the month.</p>
+    <div class="btnrow"><button class="btn block" id="aSave">Save</button></div>`);
+  const cat = $("#aCat");
+  const sync = () => $("#newWrap").classList.toggle("hidden", !cat.value.startsWith("new:"));
+  cat.onchange = sync; sync();
+  $("#typeSeg").onclick = e => { const b = e.target.closest("button"); if (b) openAdd(b.dataset.type); };
+  $("#aSave").onclick = () => {
+    const amt = parseAmt($("#aAmt").value);
+    if (!(amt > 0)) { toast("Enter an amount"); $("#aAmt").focus(); return; }
+    const m = Number($("#aMonth").value);
+    let line;
+    if (cat.value.startsWith("new:")) {
+      const name = $("#aNew").value.trim(); if (!name) { toast("Name the new category"); $("#aNew").focus(); return; }
+      line = newLine(cat.value.slice(4), name);
+    } else line = data.lines.find(l => l.id === cat.value);
+    if (!line) return;
+    line.amounts[m] = r2((line.amounts[m] || 0) + amt);
+    const note = $("#aNote").value.trim();
+    if (note) line.notes.push({ m, text: note + " (" + money(amt) + ")" });
+    save(); closeSheet(); month = m; render();
+    toast(`${money(amt)} added to ${line.name} · ${MONTHS[m]}`);
+  };
+  setTimeout(() => $("#aAmt").focus(), 250);
+}
+function newLine(group, name){
+  const l = { id: group + "-c" + Date.now().toString(36), group, name, amounts: Array(12).fill(0), notes: [] };
+  data.lines.push(l); return l;
+}
+function openEdit(id){
+  const l = data.lines.find(x => x.id === id); if (!l) return;
+  const v = l.amounts[month] || 0; const ns = l.notes.filter(n => n.m === month);
+  openSheet(l.name, `
+    <p class="small muted" style="margin-top:4px">${esc(GROUP[l.group].name)} · ${MONTHS_LONG[month]} ${YEAR}</p>
+    <label class="f" for="eAmt">Amount for ${MONTHS_LONG[month]} (CAD)</label>
+    <input id="eAmt" class="input" inputmode="decimal" value="${v ? v.toFixed(2) : ""}" placeholder="0.00" autocomplete="off">
+    <label class="f" for="eName">Name</label>
+    <input id="eName" class="input" maxlength="60" value="${esc(l.name)}">
+    ${ns.length ? `<p class="small muted">Notes: ${ns.map(n => esc(n.text)).join(" · ")}</p>` : ""}
+    <div class="btnrow"><button class="btn block" id="eSave">Save</button></div>
+    <div class="btnrow"><button class="btn danger" id="eClear">Clear ${MONTHS[month]}</button><button class="btn ghost" id="eDel">Delete line</button></div>
+    <p class="small muted">Year total for this line: ${money(l.amounts.reduce((a, b) => a + b, 0))}</p>`);
+  $("#eSave").onclick = () => {
+    const raw = $("#eAmt").value.trim(); const a = raw === "" ? 0 : parseAmt(raw);
+    if (isNaN(a) || a < 0) { toast("Enter a valid amount"); return; }
+    l.amounts[month] = a; const nm = $("#eName").value.trim(); if (nm) l.name = nm;
+    save(); closeSheet(); render(); toast("Saved");
+  };
+  $("#eClear").onclick = () => { l.amounts[month] = 0; l.notes = l.notes.filter(n => n.m !== month); save(); closeSheet(); render(); toast(`${MONTHS[month]} cleared`); };
+  $("#eDel").onclick = () => {
+    if (!confirm(`Delete “${l.name}” for the whole year?`)) return;
+    data.lines = data.lines.filter(x => x !== l); save(); closeSheet(); render(); toast("Line deleted");
+  };
+}
+function openNewLine(group){
+  const g = GROUP[group];
+  openSheet(g.income ? "New income source" : "New category", `
+    <p class="small muted" style="margin-top:4px">${esc(g.name)}</p>
+    <label class="f" for="nName">Name</label><input id="nName" class="input" maxlength="60">
+    <label class="f" for="nAmt">Amount for ${MONTHS_LONG[month]} (optional)</label><input id="nAmt" class="input" inputmode="decimal" placeholder="0.00">
+    <div class="btnrow"><button class="btn block" id="nSave">Add</button></div>`);
+  $("#nSave").onclick = () => {
+    const name = $("#nName").value.trim(); if (!name) { toast("Enter a name"); return; }
+    const a = $("#nAmt").value.trim() ? parseAmt($("#nAmt").value) : 0;
+    if (isNaN(a) || a < 0) { toast("Enter a valid amount"); return; }
+    const l = newLine(group, name); l.amounts[month] = a; save(); closeSheet(); render(); toast("Added");
+  };
+  setTimeout(() => $("#nName").focus(), 250);
+}
+
+// ---- Export / import ----
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `carey-budget-${YEAR}-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  toast("Backup downloaded");
+}
+function importJSON(text){
+  let d; try { d = JSON.parse(text); } catch (e) { toast("That isn't valid JSON"); return; }
+  if (!valid(d)) { toast("That doesn't look like a budget backup"); return; }
+  if (!confirm("Replace everything on this phone with the imported data?")) return;
+  d.lines.forEach(l => { l.notes = Array.isArray(l.notes) ? l.notes : []; l.amounts = l.amounts.map(v => Number(v) || 0); });
+  data = d; save(); render(); toast("Imported");
+}
+
+// ---- Events ----
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-act],[data-tab]"); if (!t) return;
+  if (t.dataset.tab) { showTab(t.dataset.tab); return; }
+  const a = t.dataset.act;
+  if (a === "prev" && month > 0) { month--; render(); }
+  else if (a === "next" && month < 11) { month++; render(); }
+  else if (a === "quick") openAdd(t.dataset.type);
+  else if (a === "gotoMonth") showTab("month");
+  else if (a === "pickMonth") { month = Number(t.dataset.m); showTab("month"); }
+  else if (a === "edit") openEdit(t.dataset.id);
+  else if (a === "newline") openNewLine(t.dataset.group);
+  else if (a === "export") exportJSON();
+  else if (a === "copy") {
+    const s = JSON.stringify(data);
+    (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => toast("Copied"), () => { $("#imp").value = s; $("#imp").select(); toast("Selected below — copy it"); });
+  }
+  else if (a === "importText") importJSON($("#imp").value);
+  else if (a === "importFile") $("#impFile").click();
+  else if (a === "reset") {
+    if (!confirm("Reset every amount to your 2026 spreadsheet? Your edits on this phone will be lost.")) return;
+    data = seedData(); save(); render(); toast("Reset to spreadsheet");
+  }
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "impFile" && e.target.files[0]) { e.target.files[0].text().then(importJSON); e.target.value = ""; }
+});
+
+showTab("home");
+
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
